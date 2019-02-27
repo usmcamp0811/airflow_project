@@ -10,7 +10,7 @@ import json
 
 import shutil, errno
 
-LIBRARIES_TO_COPY = ['papermill_runner', 'result_saver']
+LIBRARIES_TO_COPY = []
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-t", "--task", dest="taskname",
@@ -37,7 +37,7 @@ class ImagesBuilder:
         try:
             self.copy_libraries(directory_name)
             self.log.info("Building image. (run script with -l to see docker logs)")
-            image, build_logs = self.cli.images.build(path=f'./docker/{directory_name}', tag=directory_name, rm=True)
+            image, build_logs = self.cli.images.build(path=f'./tasks/{directory_name}', tag=directory_name, rm=True)
 
             while True:
                 try:
@@ -59,14 +59,14 @@ class ImagesBuilder:
     def copy_libraries(self, directory_name):
         for library in LIBRARIES_TO_COPY:
             src = f'./python/libraries/{library}'
-            dest = f'./docker/{directory_name}/{library}'
+            dest = f'./tasks/{directory_name}/{library}'
             self.log.info(f"Copying {src} to {dest}")
             self.copy_dirs(src, dest)
 
     def remove_libraries(self, directory_name):
         self.log.info("Cleaning up.")
         for library in LIBRARIES_TO_COPY:
-            dest = f'./docker/{directory_name}/{library}'
+            dest = f'./tasks/{directory_name}/{library}'
             self.log.info(f"Removing {dest}")
             shutil.rmtree(dest)
 
@@ -75,12 +75,12 @@ class ImagesBuilder:
         if taskname is not None:
             self.log.info(f"Taskname specified as {taskname}. Will build only that docker image.")
             path = f"{taskname}"
-            if not os.path.isdir(f'./docker/{taskname}'):
-                raise Exception(f'''Directory /docker/{taskname} does not exists.''')
+            if not os.path.isdir(f'./tasks/{taskname}'):
+                raise Exception(f'''Directory /tasks/{taskname} does not exists.''')
             return [path]
         else:
-            self.log.info(f"No particular task name specified. Will build every image in /docker/.")
-            return [x for x in os.listdir('./docker') if not x.startswith('.') and os.path.isdir(f'./docker/{x}')]
+            self.log.info(f"No particular task name specified. Will build every image in /tasks/.")
+            return [x for x in os.listdir('./tasks') if not x.startswith('.') and os.path.isdir(f'./tasks/{x}')]
 
     def copy_dirs(self, src, dst):
         try:
