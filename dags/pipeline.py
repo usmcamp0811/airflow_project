@@ -11,7 +11,7 @@ from launcher.docker import do_test_docker
 
 default_args = {
     'owner': 'airflow',
-    'start_date': datetime(2019, 2, 15),
+    'start_date': datetime.now(),
 }
 
 
@@ -49,17 +49,11 @@ with DAG('pipeline_python_2', default_args=default_args) as dag:
         python_callable=ContainerLauncher('task3').run
     )
 
-    new_task = PythonOperator(
-        task_id='julia-task',
-        provide_context=True,
-        python_callable=ContainerLauncher('budgetapp-task1').run
-    )
-
     t4 = PythonOperator(
         task_id='read_xcoms',
         provide_context=True,
         python_callable=read_xcoms
     )
 
-    t2_2 >> t2_3 
+    t2_2 >> t2_3
     t1 >> t1_5 >> [t2_1, t2_3] >> t4
