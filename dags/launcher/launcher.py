@@ -11,6 +11,8 @@ import tempfile
 from docker.errors import NotFound
 from docker.models.containers import Container
 
+from airflow.models import Variable
+
 log = logging.getLogger(__name__)
 
 
@@ -26,9 +28,14 @@ class ContainerLauncher:
     def run(self, **context):
         log.info(f"Creating image {self.image_name}")
 
-        environment = {
-            'EXECUTION_ID': (context['dag_run'].run_id)
-        }
+        # get environment variables from UI
+        try:
+            environment = Variable.get(self.image_name, deserialize_json=True)
+        except:
+            environment = dict()
+
+        environment['EXECUTION_ID'] = (context['dag_run'].run_id)
+
         args_json_escaped = self._pull_all_parent_xcoms(context)
         container: Container = self.cli.containers.run(detach=True, image=self.image_name, environment=environment,
                                             command=args_json_escaped)
@@ -58,7 +65,7 @@ class ContainerLauncher:
         if xcoms is None or xcoms == [] or xcoms == () or xcoms == (None,):
             return {}
         elif len(xcoms) == 1:
-            return dict(xcoms)
+            return dict(xcoms[0])
 
         result = {}
         egible_xcoms = (d for d in xcoms if d is not None and len(d) > 0)
