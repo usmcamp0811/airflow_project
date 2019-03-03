@@ -10,7 +10,7 @@ import json
 
 import shutil, errno
 
-LIBRARIES_TO_COPY = []
+LIBRARIES_TO_COPY = ['.pip']
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-t", "--task", dest="taskname",

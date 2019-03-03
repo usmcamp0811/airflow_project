@@ -1,0 +1,2 @@
+FROM python:3.6.8-jessie
+COPY pip.conf ~/.pip/pip.conf

@@ -1,37 +1,62 @@
 version: '2.1'
 services:
-  redis:
-    image: 'redis:3.2.7'
-    # command: redis-server --requirepass redispass
+  rabbitmq:
+    image: 'rabbitmq:3.7.7'
+    environment:
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_VHOST=airflow
+    labels:
+      - traefik.enable=false
+      - traefik.frontend.rule=Host:rabbitmq.airflow.palehorse.lan
+      - traefik.docker.network=campnet_proxy
+    networks:
+      - airflow
+      - campnet_proxy
 
   postgres:
     image: postgres:9.6
     environment:
       - POSTGRES_USER=airflow
-      - POSTGRES_PASSWORD=airflow
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
       - POSTGRES_DB=airflow
     # Uncomment these lines to persist data on the local filesystem.
-    #     - PGDATA=/var/lib/postgresql/data/pgdata
-    # volumes:
-    #     - ./pgdata:/var/lib/postgresql/data/pgdata
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ./database:/var/lib/postgresql/data/pgdata
+    ports:
+      - "5434:5432"
+    labels:
+      - traefik.enable=true
+      - traefik.backend=webserver
+      - traefik.frontend.rule=Host:db.airflow.palehorse.lan
+      - traefik.port=5432
+      - traefik.docker.network=campnet_proxy
+    networks:
+      - airflow
+      - campnet_proxy
 
   webserver:
     image: puckel-airflow-with-docker-inside:latest
     restart: always
     depends_on:
       - postgres
-      - redis
+      - rabbitmq
     environment:
       - LOAD_EX=n
-      - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - FERNET_KEY=${FERNET_KEY}
       - EXECUTOR=Celery
-      # - POSTGRES_USER=airflow
-      # - POSTGRES_PASSWORD=airflow
-      # - POSTGRES_DB=airflow
-      # - REDIS_PASSWORD=redispass
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=airflow
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_VHOST=airflow
     volumes:
       - ./requirements.txt:/requirements.txt
       - ./dags:/usr/local/airflow/dags
+      - airflow-tmp:/usr/local/airflow/tmp
+      - ./config/airflow.cfg:/usr/local/airflow/airflow.cfg
       # Uncomment to include custom plugins
       # - ./plugins:/usr/local/airflow/plugins
     ports:
@@ -42,18 +67,43 @@ services:
       interval: 30s
       timeout: 30s
       retries: 3
+    labels:
+      - traefik.enable=true
+      - traefik.backend=postgres
+      - traefik.frontend.rule=Host:airflow.palehorse.lan
+      - traefik.port=8080
+      - traefik.docker.network=campnet_proxy
+
+    networks:
+      - airflow
+      - campnet_proxy
 
   flower:
     image: puckel-airflow-with-docker-inside:latest
     restart: always
     depends_on:
-      - redis
+      - rabbitmq
     environment:
       - EXECUTOR=Celery
-      # - REDIS_PASSWORD=redispass
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_VHOST=airflow
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=airflow
     ports:
       - "5555:5555"
     command: flower
+    labels:
+      - traefik.enable=true
+      - traefik.backend=webserver
+      - traefik.frontend.rule=Host:flower.airflow.palehorse.lan
+      - traefik.port=5555
+      - traefik.docker.network=campnet_proxy
+
+    networks:
+      - airflow
+      - campnet_proxy
 
   scheduler:
     image: puckel-airflow-with-docker-inside:latest
@@ -63,16 +113,27 @@ services:
     volumes:
       - ./dags:/usr/local/airflow/dags
       - ./requirements.txt:/requirements.txt
+      - airflow-tmp:/usr/local/airflow/tmp
 #      - ./plugins:/usr/local/airflow/plugins
     environment:
       - LOAD_EX=n
-      - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - FERNET_KEY=${FERNET_KEY}
       - EXECUTOR=Celery
-      # - POSTGRES_USER=airflow
-      # - POSTGRES_PASSWORD=airflow
-      # - POSTGRES_DB=airflow
-      # - REDIS_PASSWORD=redispass
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=airflow
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_VHOST=airflow
     command: scheduler
+    labels:
+      - traefik.enable=false
+      - traefik.frontend.rule=Host:scheduler.airflow.palehorse.lan
+      - traefik.docker.network=campnet_proxy
+
+    networks:
+      - airflow
+      - campnet_proxy
 
   worker:
     image: puckel-airflow-with-docker-inside:latest
@@ -82,16 +143,53 @@ services:
     volumes:
       - ./dags:/usr/local/airflow/dags
       - ./requirements.txt:/requirements.txt
+      - airflow-tmp:/usr/local/airflow/tmp
       - /var/run/docker.sock:/var/run/docker.sock:ro
     environment:
-      - FERNET_KEY=46BKJoQYlPPOexq0OhDZnIlNepKFf87WFwLbfzqDDho=
+      - FERNET_KEY=${FERNET_KEY}
       - EXECUTOR=Celery
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASS}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
+      - RABBITMQ_DEFAULT_VHOST=airflow
+      - POSTGRES_USER=airflow
+      - POSTGRES_PASSWORD=${POSTGRES_PASS}
+      - POSTGRES_DB=airflow
     command: worker
+    labels:
+      - traefik.enable=false
+      - traefik.backend=scheduler
+      - traefik.frontend.rule=Host:worker.airflow.palehorse.lan
+      - traefik.docker.network=campnet_proxy
+    networks:
+      - airflow
+      - campnet_proxy
+
   pypiserver:
     image: pypiserver/pypiserver:latest
     restart: always
     volumes:
-     - ./pypi-packages:/data/packages
+      - ./pypi-packages:/data/packages
     #command: -P /data/.htpasswd -a update,download,list /data/packages
     ports:
-     - "8011:8080" # incase we wanna use it for other things
+      - "8011:8080" # incase we wanna use it for other things
+
+    labels:
+      - traefik.enable=true
+      - traefik.backend=scheduler
+      - traefik.frontend.rule=Host:pypi.palehorse.lan
+      - traefik.port=8080
+      - traefik.docker.network=campnet_proxy
+
+    networks:
+      - airflow
+      - campnet_proxy
+
+volumes:
+  airflow-tmp:
+    external: true
+
+networks:
+  campnet_proxy:
+    external:
+      name: campnet_proxy
+  airflow:

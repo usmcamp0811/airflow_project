@@ -30,15 +30,20 @@ class ContainerLauncher:
 
         # get environment variables from UI
         try:
-            environment = Variable.get(self.image_name, deserialize_json=True)
+            # appending secrets so tthe keys are encrypted in the ui
+            environment = Variable.get(f"{self.image_name}-secrets", deserialize_json=True)
+            # create a list of the environment variables we need to sanitize later
+            my_env_keys = list(environment.keys())
         except:
+            my_env_keys = []
             environment = dict()
 
         environment['EXECUTION_ID'] = (context['dag_run'].run_id)
 
         args_json_escaped = self._pull_all_parent_xcoms(context)
         container: Container = self.cli.containers.run(detach=True, image=self.image_name, environment=environment,
-                                            command=args_json_escaped)
+                                            command=args_json_escaped,
+                                            volumes={'airflow-tmp': {'bind': '/usr/local/julia/tmp/', 'mode': 'rw'}})
 
         container_id = container.id
         log.info(f"Running container with id {container_id}")
@@ -53,6 +58,17 @@ class ContainerLauncher:
             log.info("Docker has finished!")
 
         inspect = self.cli.api.inspect_container(container_id)
+
+        # loop over a list of environment variables in the container ['KEY=VALUE',...]
+        for ENV in inspect['Config']['Env']:
+            # for each of my keys i sent in earlier
+            for secret in my_env_keys:
+                # if my key is in the item in the list of KEY=VALUE stirngs
+                if secret in ENV:
+                    ix = inspect['Config']['Env'].index(ENV) # got the postion of the secret
+                    key_secret = inspect['Config']['Env'][ix] # The secret in the form of "KEY=VALUE"
+                    inspect['Config']['Env'][ix] = f"{secret}=**********"
+
         log.info(inspect)
         if inspect['State']['ExitCode'] != 0:
             raise Exception("Container has not finished with exit code 0")
@@ -60,6 +76,8 @@ class ContainerLauncher:
         result = self._untar_file_and_get_result_json(container)
         log.info(f"Result was {result}")
         context['task_instance'].xcom_push('result', result, context['execution_date'])
+        log.info("Removing Container...")
+        container.remove()
 
     def _combine_xcom_values(self, xcoms: List[Dict]):
         if xcoms is None or xcoms == [] or xcoms == () or xcoms == (None,):
