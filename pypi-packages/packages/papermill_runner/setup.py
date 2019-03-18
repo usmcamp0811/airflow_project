@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='papermill_runner',
-      version='0.1',
+      version='0.2',
       packages=['papermill_runner'],
       install_requires=[
           'papermill',

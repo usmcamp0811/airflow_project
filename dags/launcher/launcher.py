@@ -39,7 +39,8 @@ class ContainerLauncher:
             environment = dict()
 
         environment['EXECUTION_ID'] = (context['dag_run'].run_id)
-
+        environment['EXECUTION_DATE'] = context.get("execution_date")
+        # TODO: Create a Variable set for adding volumes in the UI
         args_json_escaped = self._pull_all_parent_xcoms(context)
         container: Container = self.cli.containers.run(detach=True, image=self.image_name, environment=environment,
                                             command=args_json_escaped,

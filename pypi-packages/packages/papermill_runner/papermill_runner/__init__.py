@@ -25,6 +25,9 @@ class PapermillRunner:
         params = {**self.yaml_params, **self.arg_params}
         pm.execute_notebook(self.CODE_PATH, output_path, parameters=params, progress_bar=False, log_output=True)
 
+    def get_params(self):
+        return {**self.yaml_params, **self.arg_params}
+
     def _overwrite_papermill_logger(self):
         root = logging.getLogger()
         root.setLevel(logging.INFO)
@@ -46,6 +49,8 @@ class PapermillRunner:
         self.log.info(f"Args are {args}")
         if args is not None and len(args) > 1:
             try:
+                # not positive but think this is taking the second thing because
+                # it should be the cmd arguments not the stuff loaded from file
                 return json.loads(args[1])
             except ValueError:
                 self.log.info('Failed to parse args.')
